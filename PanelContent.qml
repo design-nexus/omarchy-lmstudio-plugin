@@ -1006,7 +1006,9 @@ Panel {
     cursorActive = false
     if (panelFlick) panelFlick.contentY = 0
     lmstudio.refresh()
-    lmstudio.refreshAvailableModels()
+    if (lmstudio.serverRunning) {
+      lmstudio.refreshAvailableModels()
+    }
     lmstudio.refreshResources()
     Qt.callLater(function() { keyCatcher.forceActiveFocus() })
   }

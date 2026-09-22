@@ -74,6 +74,13 @@ Item {
 
   function pumpLms() {
     if (currentLms !== "") return
+    if (!serverRunning && !wantAction) {
+      wantStatus = false
+      wantPs = false
+      wantLs = false
+      refreshing = false
+      return
+    }
     var kind = ""
     var args = []
     if (wantAction) {
@@ -118,11 +125,14 @@ Item {
   // Polling must not call lms. Any lms command that cannot find the daemon
   // spawns a new `lm-studio --run-as-service`.
   readonly property string daemonProbe: [
+    "if ! pgrep -f \"[l]m-studio|[l]lmster\" >/dev/null 2>&1; then echo down; exit 0; fi",
     "f=\"$HOME/.lmstudio/.internal/http-server.json\"",
-    "if [ ! -f \"$f\" ]; then echo down; exit 0; fi",
-    "pid=$(sed -n 's/.*\"pid\": *[0-9]*/&/p' \"$f\" | tr -cd 0-9)",
-    "port=$(sed -n 's/.*\"port\": *[0-9]*/&/p' \"$f\" | tr -cd 0-9)",
-    "if [ -z \"$pid\" ] || [ ! -d \"/proc/$pid\" ]; then echo down; exit 0; fi",
+    "port=\"\"",
+    "if [ -f \"$f\" ]; then port=$(sed -n 's/.*\"port\": *\\([0-9]*\\).*/\\1/p' \"$f\"); fi",
+    "if [ -z \"$port\" ] && [ -f \"$HOME/.lmstudio/.internal/http-server-config.json\" ]; then",
+    "  port=$(sed -n 's/.*\"port\": *\\([0-9]*\\).*/\\1/p' \"$HOME/.lmstudio/.internal/http-server-config.json\")",
+    "fi",
+    "port=${port:-1234}",
     "if timeout 0.3 bash -c \"echo >/dev/tcp/127.0.0.1/$port\" >/dev/null 2>&1; then echo up; else echo down; fi"
   ].join("\n")
 
@@ -147,12 +157,16 @@ Item {
     statusText = "Server stopped"
     models = []
     modelCount = 0
+    availableModels = []
     serverError = ""
     refreshing = false
+    wantStatus = false
+    wantPs = false
+    wantLs = false
   }
 
   function refreshStatusAndModels(forceModels) {
-    if (!installed) return
+    if (!installed || !serverRunning) return
     wantStatus = true
     wantPs = true
     pumpLms()
@@ -246,7 +260,7 @@ Item {
   }
 
   function refreshAvailableModels() {
-    if (!installed) return
+    if (!installed || !serverRunning) return
     wantLs = true
     pumpLms()
   }
@@ -362,6 +376,7 @@ Item {
     onExited: function(exitCode) {
       var text = String(probeStdout.text || "").trim()
       if (text === "up") {
+        root.serverRunning = true
         root.refreshStatusAndModels()
         root.refreshAvailableModels()
       } else {
