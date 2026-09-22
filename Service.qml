@@ -115,17 +115,40 @@ Item {
     pumpLms()
   }
 
+  // Polling must not call lms. Any lms command that cannot find the daemon
+  // spawns a new `lm-studio --run-as-service`.
+  readonly property string daemonProbe: [
+    "f=\"$HOME/.lmstudio/.internal/http-server.json\"",
+    "if [ ! -f \"$f\" ]; then echo down; exit 0; fi",
+    "pid=$(sed -n 's/.*\"pid\": *[0-9]*/&/p' \"$f\" | tr -cd 0-9)",
+    "port=$(sed -n 's/.*\"port\": *[0-9]*/&/p' \"$f\" | tr -cd 0-9)",
+    "if [ -z \"$pid\" ] || [ ! -d \"/proc/$pid\" ]; then echo down; exit 0; fi",
+    "if timeout 0.3 bash -c \"echo >/dev/tcp/127.0.0.1/$port\" >/dev/null 2>&1; then echo up; else echo down; fi"
+  ].join("\n")
+
   function refresh(force) {
-    if (installed) {
-      refreshStatusAndModels(force === true)
-      refreshAvailableModels()
+    if (!installed) {
+      if (!whichProcess.running) {
+        refreshing = true
+        whichProcess.command = ["which", lmsPath()]
+        whichProcess.running = true
+      }
       return
     }
-    if (!whichProcess.running) {
-      refreshing = true
-      whichProcess.command = ["which", lmsPath()]
-      whichProcess.running = true
-    }
+    if (probeProcess.running) return
+    probeProcess.command = ["bash", "-c", daemonProbe]
+    probeProcess.running = true
+  }
+
+  function markServerDown() {
+    if (_desiredServerState === 1) return
+    serverRunning = false
+    serverPort = 0
+    statusText = "Server stopped"
+    models = []
+    modelCount = 0
+    serverError = ""
+    refreshing = false
   }
 
   function refreshStatusAndModels(forceModels) {
@@ -321,11 +344,28 @@ Item {
     command: []
     onExited: function(exitCode) {
       root.installed = exitCode === 0
-      if (root.installed) root.refreshStatusAndModels()
+      if (root.installed) root.refresh()
       else {
         root.refreshing = false
         root.resetServerState("LMS CLI not found")
         root.lastError = "Install LM Studio or set custom path in settings"
+      }
+    }
+  }
+
+  // Process: is the daemon already listening? Does not start LM Studio.
+  Process {
+    id: probeProcess
+    running: false
+    command: []
+    stdout: StdioCollector { id: probeStdout; waitForEnd: true }
+    onExited: function(exitCode) {
+      var text = String(probeStdout.text || "").trim()
+      if (text === "up") {
+        root.refreshStatusAndModels()
+        root.refreshAvailableModels()
+      } else {
+        root.markServerDown()
       }
     }
   }
