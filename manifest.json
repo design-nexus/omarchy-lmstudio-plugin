@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "id": "design-nexus.lmstudio",
+  "name": "LM Studio",
+  "version": "1.2.0",
+  "author": "Design Nexus",
+  "license": "MIT",
+  "description": "LM Studio server status, model management, and quick actions in the Omarchy bar.",
+  "kinds": ["bar-widget"],
+  "entryPoints": { "barWidget": "Panel.qml" },
+  "barWidget": {
+    "displayName": "LM Studio",
+    "description": "Monitor and control LM Studio server, load/unload models, copy identifiers.",
+    "category": "AI",
+    "allowMultiple": false,
+    "defaultSection": "right",
+    "defaults": {
+      "refreshIntervalSec": 30,
+      "lmsPath": ""
+    },
+    "schema": [
+      {
+        "key": "refreshIntervalSec",
+        "type": "integer",
+        "label": "Refresh interval (seconds)",
+        "min": 5,
+        "max": 3600,
+        "step": 5,
+        "defaultValue": 30
+      },
+      {
+        "key": "lmsPath",
+        "type": "string",
+        "label": "Custom LMS CLI path (empty for default ~/.lmstudio/bin/lms)",
+        "defaultValue": ""
+      }
+    ]
+  }
+}
