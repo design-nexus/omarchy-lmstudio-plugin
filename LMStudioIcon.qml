@@ -8,6 +8,7 @@ Item {
     property real iconSize: Style.font.icon
     property color color: Color.foreground
     property color badgeColor: Color.urgent
+    property color activeModelColor: "#38bdf8"
     property bool running: false
     property int modelCount: 0
     property bool warning: false
@@ -22,6 +23,7 @@ Item {
     readonly property real spacing: Math.max(3, root.iconSize * 0.22)
     readonly property real startX: (root.iconSize - (root.dotSize * 3 + root.spacing * 2)) / 2
     readonly property real startY: (root.iconSize - (root.dotSize * 3 + root.spacing * 2)) / 2
+    readonly property bool hasActiveModel: root.running && root.modelCount > 0
 
     // Neural network: 3x3 grid of neurons with connections
     // Draw connections first (lines between dots)
@@ -85,46 +87,73 @@ Item {
         }
     }
 
+    // Glowing halo for center neuron when a model is running
+    Item {
+        anchors.centerIn: parent
+        visible: root.hasActiveModel
+        width: root.dotSize
+        height: root.dotSize
+
+        // Outer glow layer with gentle pulse
+        Rectangle {
+            anchors.centerIn: parent
+            width: root.dotSize * 2.8
+            height: width
+            radius: width / 2
+            color: root.activeModelColor
+            opacity: 0.25
+
+            SequentialAnimation on opacity {
+                running: root.hasActiveModel
+                loops: Animation.Infinite
+                NumberAnimation { to: 0.55; duration: 1200; easing.type: Easing.InOutSine }
+                NumberAnimation { to: 0.15; duration: 1200; easing.type: Easing.InOutSine }
+            }
+            SequentialAnimation on scale {
+                running: root.hasActiveModel
+                loops: Animation.Infinite
+                NumberAnimation { to: 1.15; duration: 1200; easing.type: Easing.InOutSine }
+                NumberAnimation { to: 0.95; duration: 1200; easing.type: Easing.InOutSine }
+            }
+        }
+
+        // Mid glow layer
+        Rectangle {
+            anchors.centerIn: parent
+            width: root.dotSize * 1.9
+            height: width
+            radius: width / 2
+            color: root.activeModelColor
+            opacity: 0.5
+
+            SequentialAnimation on opacity {
+                running: root.hasActiveModel
+                loops: Animation.Infinite
+                NumberAnimation { to: 0.75; duration: 1200; easing.type: Easing.InOutSine }
+                NumberAnimation { to: 0.35; duration: 1200; easing.type: Easing.InOutSine }
+            }
+        }
+    }
+
     // Neurons (dots)
     Repeater {
         model: 9
         delegate: Rectangle {
+            readonly property bool isCenter: index === 4
+            readonly property bool isModelActive: isCenter && root.hasActiveModel
+
             x: root.startX + (index % 3) * (root.dotSize + root.spacing)
             y: root.startY + Math.floor(index / 3) * (root.dotSize + root.spacing)
-            width: root.dotSize
-            height: root.dotSize
+            width: isModelActive ? root.dotSize * 1.3 : root.dotSize
+            height: width
             radius: width / 2
-            color: root.running ? root.color : Qt.darker(root.color, 2.5)
-            opacity: root.running ? 1.0 : 0.45
+            color: isModelActive ? root.activeModelColor : (root.running ? root.color : Qt.darker(root.color, 2.5))
+            opacity: isModelActive ? 1.0 : (root.running ? 1.0 : 0.45)
 
-            // Center neuron slightly larger when running
             Behavior on width { NumberAnimation { duration: 150 } }
             Behavior on height { NumberAnimation { duration: 150 } }
+            Behavior on color { ColorAnimation { duration: 200 } }
             Behavior on opacity { NumberAnimation { duration: 200 } }
-        }
-    }
-
-    // Model count badge (top-right)
-    Rectangle {
-        visible: root.running && root.modelCount > 0 && root.modelCount < 100
-        x: parent.width - width - 2
-        y: -height / 2
-        property real badgeSize: Math.max(12, root.iconSize * 0.45)
-        width: Math.max(badgeSize, text.implicitWidth + 6)
-        height: badgeSize
-        radius: height / 2
-        color: root.badgeColor
-        border.color: Color.background
-        border.width: Math.max(1, root.iconSize * 0.07)
-
-        Text {
-            id: text
-            anchors.centerIn: parent
-            text: root.modelCount > 9 ? "9+" : String(root.modelCount)
-            color: Color.background
-            font.family: Style.font.family
-            font.pixelSize: Math.max(7, root.iconSize * 0.35)
-            font.bold: true
         }
     }
 
